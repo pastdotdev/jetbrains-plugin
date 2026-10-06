@@ -1,0 +1,9 @@
+{
+  "icons": {
+    "expui": {
+      "toolwindow": {
+        "past.svg": "icons/past.svg"
+      }
+    }
+  }
+}

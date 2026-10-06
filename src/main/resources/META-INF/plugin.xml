@@ -1,0 +1,45 @@
+<idea-plugin>
+  <id>dev.past.jetbrains</id>
+  <name>past.dev</name>
+  <vendor url="https://past.dev">past.dev</vendor>
+  <description><![CDATA[
+    <p>Your conversations with Junie become memory, and Junie can recall it.</p>
+    <p><a href="https://past.dev">past.dev</a> is a memory platform. This plugin connects Junie, in the IDE's AI chat
+    and in its terminal, to a past.dev project: each session is read into past.dev when it is over, and past.dev's
+    <code>past_recall</code> tool on the IDE's MCP server gives Junie what was decided before, why, and what was
+    already tried.</p>
+    <p>Only the prose of a conversation travels: what you typed and what Junie answered. Tool runs, file contents
+    and diffs stay on this machine. Nothing is sent before you allow it. Requires a project API key from the past.dev
+    console.</p>
+  ]]></description>
+
+  <change-notes><![CDATA[
+    <p>The first release.</p>
+    <ul>
+      <li>Junie's sessions, in the IDE's AI chat and in the Junie CLI, are sent to past.dev in sittings once they
+      have been quiet for 30 minutes, and when the IDE quits. Nothing is sent before you allow it.</li>
+      <li><code>past_recall</code> on the IDE's MCP server, listed to Junie as a tool of its own.</li>
+      <li>The past.dev tool window: status, Send now, Send history… and search.</li>
+    </ul>
+  ]]></change-notes>
+
+  <depends>com.intellij.modules.platform</depends>
+  <depends optional="true" config-file="past-mcp.xml">com.intellij.mcpServer</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <applicationConfigurable parentId="tools" id="dev.past.jetbrains.settings" displayName="past.dev"
+                             instance="dev.past.jetbrains.settings.PastConfigurable"/>
+    <toolWindow id="past.dev" anchor="right" icon="/icons/past.svg" doNotActivateOnStart="true"
+                factoryClass="dev.past.jetbrains.toolwindow.PastToolWindowFactory"/>
+    <postStartupActivity implementation="dev.past.jetbrains.PastStartup"/>
+    <notificationGroup id="past.dev" displayType="BALLOON"/>
+    <!-- The question before any session is sent: it stays until it is answered or closed. -->
+    <notificationGroup id="past.dev: Junie's sessions" displayType="STICKY_BALLOON"/>
+    <!-- The new UI's tool window icons, 20x20 and 16x16, in place of the classic 13x13 one. -->
+    <iconMapper mappingFile="PastIconMappings.json"/>
+  </extensions>
+
+  <applicationListeners>
+    <listener class="dev.past.jetbrains.junie.JunieShutdown" topic="com.intellij.ide.AppLifecycleListener"/>
+  </applicationListeners>
+</idea-plugin>

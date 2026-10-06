@@ -1,0 +1,7 @@
+<idea-plugin>
+  <extensions defaultExtensionNs="com.intellij">
+    <mcpServer.mcpToolset implementation="dev.past.jetbrains.mcp.PastToolset"/>
+    <!-- Last, so that it acts on the states the platform's own filters leave. -->
+    <mcpServer.mcpToolFilterProvider implementation="dev.past.jetbrains.mcp.PastToolFilter" order="last"/>
+  </extensions>
+</idea-plugin>

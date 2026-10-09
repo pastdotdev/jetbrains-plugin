@@ -12,8 +12,8 @@ what was already tried.
 Requires a JetBrains IDE 2026.2 or later and a project API key: it starts with `past_sk_` and comes
 from **Build › API keys** in the [past.dev console](https://past.dev).
 
-1. Build the plugin (`./gradlew buildPlugin`) and install `build/distributions/past-jetbrains-*.zip`
-   with **Settings › Plugins › ⚙ › Install Plugin from Disk…**.
+1. Open **Settings › Plugins › Marketplace**, search for **past.dev** and install it. Its page on
+   JetBrains Marketplace is <https://plugins.jetbrains.com/plugin/34827-past-dev>.
 2. Open **Settings › Tools › past.dev** and enter the key and your identity: the email or id every
    memory is attributed to. A machine already connected by another past.dev plugin needs nothing more;
    every past.dev plugin reads `~/.past/config.json`.
@@ -25,6 +25,9 @@ from **Build › API keys** in the [past.dev console](https://past.dev).
 
 The **past.dev** tool window shows what has been sent from this machine, sends what waits, and searches
 the project's memory.
+
+To run your own build instead, run `./gradlew buildPlugin` and install
+`build/distributions/past-jetbrains-*.zip` with **Settings › Plugins › ⚙ › Install Plugin from Disk…**.
 
 ## When a session is sent
 

@@ -7,7 +7,11 @@ package dev.past.jetbrains
  */
 object Redaction {
     private val PATTERNS = listOf(
-        Regex("""\b(?:past_sk|past_mk|sk-ant|sk-|ghp_|gho_|ghu_|ghs_|github_pat|xox[baprs]|AKIA|ASIA|glpat)-?[A-Za-z0-9_\-]{12,}"""),
+        // past_ct_ is a past.dev claim token. Its underscore is part of the match, so a name that
+        // only begins with past_ct, such as past_ctx_identifier_value, keeps its bytes: redacting it
+        // would change a session already in past.dev, and that session would be sent again as a paid
+        // revision.
+        Regex("""\b(?:past_sk|past_mk|past_ct_|sk-ant|sk-|ghp_|gho_|ghu_|ghs_|github_pat|xox[baprs]|AKIA|ASIA|glpat)-?[A-Za-z0-9_\-]{12,}"""),
         Regex("""\bBearer\s+[A-Za-z0-9._\-]{20,}""", RegexOption.IGNORE_CASE),
         Regex("""\beyJ[A-Za-z0-9._\-]{20,}"""),
         Regex("""\b([A-Z0-9_]*(?:SECRET|PASSWORD|TOKEN|API_?KEY|PRIVATE_?KEY|CREDENTIAL)[A-Z0-9_]*)\s*[=:]\s*\S+"""),

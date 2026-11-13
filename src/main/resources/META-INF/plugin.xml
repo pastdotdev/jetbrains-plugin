@@ -14,7 +14,17 @@
   ]]></description>
 
   <change-notes><![CDATA[
-    <p>The first release.</p>
+    <p>0.2.0</p>
+    <ul>
+      <li><code>past_recall</code> answers with a fuller page: up to a hundred memories within two thousand
+      tokens, most relevant first, each with the time it was said, a mark where something later replaced it, and
+      the passages of the conversations it came from. It answered with eight one-line memories before.</li>
+      <li>What you type is sent with the key it was typed under, and with no other. Nothing typed while the
+      machine had no key is sent, and what was typed under one project's key never goes to another project.</li>
+      <li>A session sent carries the name of the project's folder, never its path.</li>
+      <li>Each session sent names the model Junie was set to and its effort level.</li>
+    </ul>
+    <p>0.1.0, the first release.</p>
     <ul>
       <li>Junie's sessions, in the IDE's AI chat and in the Junie CLI, are sent to past.dev in sittings once they
       have been quiet for 30 minutes, and when the IDE quits. Nothing is sent before you allow it.</li>

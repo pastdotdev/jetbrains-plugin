@@ -143,4 +143,82 @@ class JunieTranscriptTest {
         assertEquals(30, grown.minutes)
         assertEquals(listOf(1), grown.changed.map { it.sitting.index })
     }
+
+    @Test
+    fun `a turn carries the model and the effort Junie was set to, and neither is rendered`() {
+        val set = """{"kind":"SessionModelEffortSetEvent","modelId":"gemini-3.7-flash","providerCode":"jetbrains-ai","effortWireId":"medium","timestampMs":${at(0)}}"""
+        val launched = """{"kind":"UserPromptEvent","timestampMs":${at(5)},"requestId":"r2","presentablePrompt":"Now the tests","prompt":"Now the tests",""" +
+            """"customAttachments":[{"kind":"ModelForLaunchAttachment","modelId":"gpt-6-terra"},{"kind":"EffortForLaunchAttachment","effort":"high"}]}"""
+        val conversation = read(
+            set,
+            prompt(at(0, 1), "r1", "Plan the migration"),
+            block(at(1), "MarkdownBlockUpdatedEvent", "s1", "text", "Three steps."),
+            launched,
+            block(at(6), "MarkdownBlockUpdatedEvent", "s2", "text", "Two tests fail."),
+        )!!
+
+        assertEquals(listOf("gemini-3.7-flash", "gemini-3.7-flash", "gpt-6-terra", "gpt-6-terra"), conversation.turns.map { it.model })
+        assertEquals(listOf("medium", "medium", "high", "high"), conversation.turns.map { it.effort })
+        val rendered = JunieTranscript.render(conversation)
+        assertFalse(rendered.contains("gemini") || rendered.contains("terra") || rendered.contains("medium"))
+
+        // A session that names neither reads as before.
+        val bare = read(prompt(at(0), "r1", "Plan the migration"))!!
+        assertEquals("", bare.turns.single().model)
+        assertEquals("", bare.turns.single().effort)
+    }
+
+    @Test
+    fun `a sitting is sent with the connection it was typed under, and with no other`() {
+        val conversation = read(
+            prompt(at(0), "r1", "Typed before the machine was connected"),
+            block(at(1), "MarkdownBlockUpdatedEvent", "s1", "text", "Answered before it was connected."),
+            // The reply to the first prompt lands after the machine connected: it stays with its prompt.
+            block(at(11), "MarkdownBlockUpdatedEvent", "s2", "text", "Still the first answer."),
+            prompt(at(12), "r2", "Typed once connected"),
+            block(at(13), "MarkdownBlockUpdatedEvent", "s3", "text", "Answered once connected."),
+        )!!
+        val spans = listOf(JunieTranscript.Span(at(0) - 60_000, ""), JunieTranscript.Span(at(10), "first-key"))
+
+        // No record of connections: one sitting, as before.
+        assertEquals(1, JunieTranscript.sittings(conversation, 30).size)
+
+        val sittings = JunieTranscript.sittings(conversation, 30, spans)
+        assertEquals(listOf("", "first-key"), sittings.map { it.connection })
+        assertEquals(listOf(3, 2), sittings.map { it.turns.size })
+
+        val connected = JunieTranscript.plan(conversation, null, 30, spans, "first-key")
+        assertEquals(listOf(1), connected.changed.map { it.sitting.index })
+        assertEquals(listOf(0), connected.kept.map { it.sitting.index })
+        assertFalse(connected.changed.single().content.contains("before the machine was connected"))
+
+        // Under another key nothing of it goes, and with no key nothing does.
+        assertTrue(JunieTranscript.plan(conversation, null, 30, spans, "second-key").changed.isEmpty())
+        assertTrue(JunieTranscript.plan(conversation, null, 30, spans, "").changed.isEmpty())
+    }
+
+    @Test
+    fun `a session from before connections were recorded is cut and sent as it was`() {
+        val conversation = read(
+            prompt(at(0), "r1", "Typed before the plugin kept a record"),
+            block(at(1), "MarkdownBlockUpdatedEvent", "s1", "text", "An answer."),
+            prompt(at(12), "r2", "Typed after it began"),
+        )!!
+        val spans = listOf(JunieTranscript.Span(at(10), "first-key"))
+
+        val before = JunieTranscript.plan(conversation, null, 30)
+        val after = JunieTranscript.plan(conversation, null, 30, spans, "first-key")
+        assertEquals(before.parts.map { it.hash }, after.parts.map { it.hash })
+        assertEquals(before.changed.map { it.sitting.index }, after.changed.map { it.sitting.index })
+        assertTrue(after.kept.isEmpty())
+    }
+
+    @Test
+    fun `the fingerprint of a connection is empty with no key, and differs by key and by address`() {
+        assertEquals("", JunieTranscript.connectionOf("https://api.past.dev", ""))
+        val one = JunieTranscript.connectionOf("https://api.past.dev", "past_sk_one")
+        assertEquals(16, one.length)
+        assertFalse(one == JunieTranscript.connectionOf("https://api.past.dev", "past_sk_two"))
+        assertFalse(one == JunieTranscript.connectionOf("https://staging.example", "past_sk_one"))
+    }
 }

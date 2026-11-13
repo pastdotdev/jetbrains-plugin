@@ -28,7 +28,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * said next starts a new sitting, so the sittings already in past.dev keep their hash and are never
  * sent again. The IDE quitting sends what waits at once ([sendOnQuit]).
  *
- * Nothing is sent on its own before the person allows it ([consent]).
+ * Nothing is sent on its own before the person allows it ([consent]), and a sitting is sent only
+ * with the key it was typed under ([noteConnection]): what was typed with no key, or under another
+ * project's key, stays on the machine.
  *
  * Sessions last active before capture first ran on this machine are the history. They are sent only
  * when the person asks, after seeing what it costs ([history], [sendHistory]).
@@ -59,6 +61,7 @@ class JunieCapture(private val scope: CoroutineScope) {
      */
     fun sendWaiting(now: Boolean): Int {
         val config = PastConfig.load()
+        noteConnection(config)
         if (!consent.sends || !config.ingest || !config.connected) return 0
         return JunieState.locked {
             var state = JunieState.load()
@@ -91,14 +94,16 @@ class JunieCapture(private val scope: CoroutineScope) {
     /** What sending the history would carry: the sessions from before capture began, never sent. */
     fun history(): History {
         val config = PastConfig.load()
-        val sessions = historySessions(config, JunieState.load())
+        val state = JunieState.load()
+        val sessions = historySessions(config, state)
         val parts = sessions.mapNotNull { JunieStore.read(it) }
-            .flatMap { JunieTranscript.plan(it, null, config.sittingMinutes).changed }
+            .flatMap { JunieTranscript.plan(it, null, config.sittingMinutes, state.connections, connectionOf(config)).changed }
         return History(sessions.size, parts.size, parts.sumOf { it.bytes } / 1024.0, JunieTranscript.credits(parts))
     }
 
     fun sendHistory(): Int {
         val config = PastConfig.load()
+        noteConnection(config)
         if (!config.ingest || !config.connected) return 0
         return JunieState.locked {
             var state = JunieState.load()
@@ -135,6 +140,29 @@ class JunieCapture(private val scope: CoroutineScope) {
         worker.join(QUIT_BUDGET_MS)
     }
 
+    private fun connectionOf(config: PastConfig) = JunieTranscript.connectionOf(config.apiUrl, config.apiKey)
+
+    /**
+     * Records the connection this machine has now, when it is not the one recorded last. Junie runs
+     * no hook, so this runs at every pass of the loop and before every send, whether or not anything
+     * may be sent: the time with no key is a connection too. A change is dated at the config file's
+     * own change where that falls after the last record, since another past.dev plugin can connect
+     * the machine between two passes. A session with a sitting held back is looked at again.
+     */
+    private fun noteConnection(config: PastConfig) = JunieState.locked {
+        val state = JunieState.load()
+        val current = connectionOf(config)
+        val last = state.connections.lastOrNull()
+        if (last?.connection == current) return@locked
+        val clock = System.currentTimeMillis()
+        val changed = PastConfig.changedMs()
+        val at = if (last != null && changed > last.atMs && changed <= clock) changed else clock
+        JunieState.save(state.copy(
+            connections = state.connections + JunieTranscript.Span(at, current),
+            sessions = state.sessions.mapValues { (_, record) -> if (record.sittings.any { it.isEmpty() }) record.copy(sentAtMs = 0) else record },
+        ))
+    }
+
     /** When a session counts as over: its last event plus its sitting length. */
     private fun dueMs(config: PastConfig, state: JunieState.State, session: JunieStore.Session): Long =
         session.modifiedMs + JunieTranscript.lengthOf(state.sessions[session.id]?.toSent(), config.sittingMinutes) * 60_000L
@@ -162,10 +190,14 @@ class JunieCapture(private val scope: CoroutineScope) {
             val noted = record?.copy(sentAtMs = clock) ?: JunieState.Record("", emptyList(), 0, clock, 0)
             return state.copy(sessions = state.sessions + (session.id to noted)) to false
         }
-        val plan = JunieTranscript.plan(conversation, record?.toSent(), config.sittingMinutes)
+        val plan = JunieTranscript.plan(conversation, record?.toSent(), config.sittingMinutes, state.connections, connectionOf(config))
+        // A sitting held back keeps the hash it was last sent with, or none, and the whole hash is
+        // written only once every sitting is in past.dev.
+        val hashes = plan.parts.map { part -> if (part in plan.kept) record?.sittings?.getOrNull(part.sitting.index).orEmpty() else part.hash }
+        val whole = if (plan.kept.isEmpty()) plan.whole else record?.hash.orEmpty()
         // past.dev charges nothing for an unchanged send, but the call would still spend a request.
         if (plan.changed.isEmpty()) {
-            val noted = record?.copy(sentAtMs = clock) ?: JunieState.Record(plan.whole, plan.parts.map { it.hash }, plan.minutes, clock, conversation.turns.size)
+            val noted = record?.copy(sentAtMs = clock) ?: JunieState.Record(whole, hashes, plan.minutes, clock, conversation.turns.size)
             return state.copy(sessions = state.sessions + (session.id to noted)) to false
         }
         val label = "${JunieTranscript.AGENT} · ${conversation.project.ifBlank { "unknown project" }}"
@@ -182,10 +214,15 @@ class JunieCapture(private val scope: CoroutineScope) {
                     put("client", JunieTranscript.SOURCE)
                     put("conversationId", session.id)
                     put("sessionId", session.id)
+                    // The folder's name. Its path stays on this machine.
                     put("project", conversation.project)
-                    put("cwd", conversation.cwd)
                     put("sitting", part.sitting.index + 1)
                     put("turns", part.sitting.turns.size)
+                    // What Junie was set to at the sitting's last turn, where the session says.
+                    part.sitting.turns.last().let { turn ->
+                        if (turn.model.isNotEmpty()) put("model", turn.model)
+                        if (turn.effort.isNotEmpty()) put("effort", turn.effort)
+                    }
                     // The IDE that sent it, which every IDE with the plugin may be: they all watch the
                     // same sessions, so it is not always where the conversation took place.
                     if (Ide.name.isNotEmpty()) put("sentFrom", Ide.name)
@@ -194,7 +231,7 @@ class JunieCapture(private val scope: CoroutineScope) {
         })
         return when (val reply = PastApi.ingestBatch(config, items)) {
             is PastApi.Reply.Ok -> {
-                val sent = JunieState.Record(plan.whole, plan.parts.map { it.hash }, plan.minutes, clock, conversation.turns.size)
+                val sent = JunieState.Record(whole, hashes, plan.minutes, clock, conversation.turns.size)
                 state.copy(sessions = state.sessions + (session.id to sent), lastError = null) to true
             }
             is PastApi.Reply.Refused -> state.copy(lastError = JunieState.Failure(clock, reply.status.toString(), reply.code)) to false

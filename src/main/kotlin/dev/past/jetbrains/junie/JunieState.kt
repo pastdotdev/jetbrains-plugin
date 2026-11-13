@@ -43,9 +43,15 @@ object JunieState {
 
     /**
      * `sinceMs` is when capture first ran on this machine. Sessions last active before it are the
-     * history, and are sent only when the person asks for it.
+     * history, and are sent only when the person asks for it. `connections` are the connections
+     * this machine has had since the plugin began recording them, each with the time it began.
      */
-    data class State(val sinceMs: Long, val sessions: Map<String, Record>, val lastError: Failure?)
+    data class State(
+        val sinceMs: Long,
+        val sessions: Map<String, Record>,
+        val lastError: Failure?,
+        val connections: List<JunieTranscript.Span> = emptyList(),
+    )
 
     private val dir = PastConfig.home.resolve("junie")
     private val file = dir.resolve("state.json")
@@ -76,7 +82,12 @@ object JunieState {
         val error = (root["lastError"] as? JsonObject)?.let {
             Failure((it["atMs"] as? JsonPrimitive)?.longOrNull ?: 0, it.text("status"), it.text("code"))
         }
-        return State((root["sinceMs"] as? JsonPrimitive)?.longOrNull ?: 0, sessions, error)
+        val connections = (root["connections"] as? JsonArray).orEmpty().mapNotNull { value ->
+            val span = value as? JsonObject ?: return@mapNotNull null
+            val at = (span["atMs"] as? JsonPrimitive)?.longOrNull ?: return@mapNotNull null
+            JunieTranscript.Span(at, span.text("connection"))
+        }
+        return State((root["sinceMs"] as? JsonPrimitive)?.longOrNull ?: 0, sessions, error, connections)
     }
 
     fun save(state: State) {
@@ -89,6 +100,14 @@ object JunieState {
                     put("sittingMinutes", record.sittingMinutes)
                     put("sentAtMs", record.sentAtMs)
                     put("turns", record.turns)
+                }
+            }
+            putJsonArray("connections") {
+                state.connections.forEach { span ->
+                    add(buildJsonObject {
+                        put("atMs", span.atMs)
+                        put("connection", span.connection)
+                    })
                 }
             }
             state.lastError?.let { error ->

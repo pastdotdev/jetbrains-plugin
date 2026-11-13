@@ -68,6 +68,37 @@ class JunieTranscriptTest {
     }
 
     @Test
+    fun `redacts a claim token as it redacts a key`() {
+        // A claim token is past_ct_ and 43 base64url characters, which can hold a dash or an underscore.
+        val conversation = read(
+            prompt(at(0), "r1", "The claim token is past_ct_0123456789-abcdefghijklmnopqrstuvwxyz_ABCDE"),
+            block(at(1), "MarkdownBlockUpdatedEvent", "s1", "text", "Keep past_sk_0123456789abcdefghij, never past_mk_0123456789abcdefghij."),
+        )!!
+
+        assertEquals(
+            "# Junie session — shop\n\n" +
+                "## Developer · 2026-09-21T14:13:20.000Z\nThe claim token is [redacted]\n\n" +
+                "## Junie · 2026-09-21T14:14:20.000Z\nKeep [redacted], never [redacted].\n",
+            JunieTranscript.render(conversation),
+        )
+    }
+
+    @Test
+    fun `leaves a name that only starts like a claim token as it is`() {
+        // Only past_ct_, underscore included, starts a claim token. These names keep every byte, so a
+        // session that holds them keeps its hash and is not sent again.
+        val conversation = read(
+            prompt(at(0), "r1", "Rename past_ctx_identifier_value to past_ctx_owner_reference"),
+        )!!
+
+        assertEquals(
+            "# Junie session — shop\n\n" +
+                "## Developer · 2026-09-21T14:13:20.000Z\nRename past_ctx_identifier_value to past_ctx_owner_reference\n",
+            JunieTranscript.render(conversation),
+        )
+    }
+
+    @Test
     fun `leaves out failed prompts and the recall block`() {
         val conversation = read(
             prompt(at(0), "r1", "This one never left", delivery = "Failed"),

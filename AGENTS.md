@@ -20,7 +20,7 @@ IDE quits                              JunieShutdown → JunieCapture.sendOnQuit
 Settings › Tools › past.dev                PastConnect.connect → ~/.past/config.json
 past.dev tool window                       status · Send now · Send history… · search (PastApi.recall)
 Junie's session of the IDE's tools     PastToolFilter (last) → past_recall direct, as mcp_<ide>_past_recall
-an agent calls past_recall             PastToolset → PastApi.recall → POST /api/v1/recall
+an agent calls past_recall             PastToolset → PastApi.recallPage → POST /api/v1/recall → RecallPage.render
 ```
 
 ## Rules
@@ -96,10 +96,21 @@ an agent calls past_recall             PastToolset → PastApi.recall → POST /
     are metadata, never rendered, so they change no hash (rule 5). The folder's path is not sent:
     `metadata.project` is the folder's name.
 
+17. **A recall is one page.** `past_recall` asks for up to a hundred memories within two thousand tokens
+    (`limit` 100, `maxTokens` 2000, the query redacted and cut at 1,000 characters) and sends nothing
+    else: no `level`, no date. `RecallPage.render` prints the page in rank order under the recall
+    header and a count: `- <moment>: <memory>` for each memory, with `(replaced <date>)` after the
+    moment of one something later superseded, then `  > <passage>` for each passage of the
+    conversations it came from. The moment is the source's local time where one was recorded, UTC
+    otherwise. A memory or a passage is printed once in a page. White space is collapsed by
+    JavaScript's rule, which is wider than the JVM's, so a page reads the same wherever past.dev's
+    recall is read. `RecallPageTest` pins the request and the rendering. The tool window's search is
+    a separate, shorter read (`PastApi.recall`).
+
 ## Building
 
 ```
-./gradlew test             # the Junie reader, sittings and the send plan
+./gradlew test             # the Junie reader, sittings, the send plan and the recall page
 ./gradlew buildPlugin      # build/distributions/past-jetbrains-<version>.zip
 ./gradlew verifyPlugin     # the Plugin Verifier: IDEA 2026.2 and 2026.2.3, PyCharm, WebStorm, Rider 2026.2.3
 ./gradlew signPlugin       # build/distributions/past-jetbrains-<version>-signed.zip, skipped without a certificate
@@ -133,4 +144,5 @@ and set `sittingMinutes` to 5 in `~/.past/config.json`. Then, in an IDE with the
 5. In the past.dev tool window, **Status** counts the session as sent; **Send history…** lists what was
    there before and costs it before sending.
 6. Ask Junie which past.dev tools it has: `past_recall` is listed, with the IDE's MCP server switch off.
-   Ask it to use it: the stand-in receives `/api/v1/recall`.
+   Ask it to use it: the stand-in receives `/api/v1/recall` with `limit` 100 and `maxTokens` 2000, and
+   Junie reads the page under `=== past · recalled from memory ===`.

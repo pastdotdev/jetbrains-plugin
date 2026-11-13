@@ -41,10 +41,10 @@ Sessions from before the plugin was connected are your history. They are sent on
 
 Only the prose of a conversation: what you typed and what Junie answered, with secrets that look
 like keys or tokens redacted. Tool runs, their output, file contents, diffs and the environment
-Junie records stay here. An unchanged session is never sent twice. Each request and each session
-sent also carries the IDE's name and version (for example "DataGrip 2026.2.3"), so past.dev can tell
-which IDE a call came from. A project whose folder is listed
-in `deny` in `~/.past/config.json` is never read.
+Junie records stay here. An unchanged session is never sent twice. Each session sent carries the
+name of the project's folder, never its path. Each request and each session sent also carries the
+IDE's name and version (for example "DataGrip 2026.2.3"), so past.dev can tell which IDE a call came
+from. A project whose folder is listed in `deny` in `~/.past/config.json` is never read.
 
 ## What this repository is
 

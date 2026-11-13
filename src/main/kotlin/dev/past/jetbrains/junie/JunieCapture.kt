@@ -182,8 +182,8 @@ class JunieCapture(private val scope: CoroutineScope) {
                     put("client", JunieTranscript.SOURCE)
                     put("conversationId", session.id)
                     put("sessionId", session.id)
+                    // The folder's name. Its path stays on this machine.
                     put("project", conversation.project)
-                    put("cwd", conversation.cwd)
                     put("sitting", part.sitting.index + 1)
                     put("turns", part.sitting.turns.size)
                     // The IDE that sent it, which every IDE with the plugin may be: they all watch the

@@ -78,6 +78,23 @@ an agent calls past_recall             PastToolset → PastApi.recall → POST /
     past.dev plugin connected needs no visit to Settings, so `JunieConsentNotice` asks once per IDE
     run, while the machine is connected and nobody has answered. The Settings checkbox gives the same
     answer. `JunieConsentTest` pins the default. **Send history…** asks for itself, with its cost.
+15. **A sitting is sent with the connection it was typed under.** `state.json` keeps the connections
+    this machine has had (`connections`: a fingerprint of the key and the address, empty with no
+    key, each with the time it began). Junie runs no hook, so `JunieCapture.noteConnection` records
+    a change at every pass of the loop and before every send, dated at the config file's own change
+    where that is later than the last record: another past.dev plugin can connect the machine
+    between two passes. A prompt typed under another connection than its sitting's starts a new
+    sitting, and a sitting is sent only while its connection is the one in force (`Plan.kept` holds
+    the others), **Send now** and **Send history…** included. A prompt from before any connection
+    was recorded names none: it starts no sitting and is sent as before, so nothing already in
+    past.dev moves. A sitting held back keeps its last hash, or an empty one, and the session's
+    whole hash is written only once every sitting is in past.dev; a session with a sitting held
+    back is looked at again when the connection changes.
+16. **A sitting names what Junie ran on.** `metadata.model` and `metadata.effort` are what Junie was
+    set to at the sitting's last turn: `SessionModelEffortSetEvent` (`modelId`, `effortWireId`), and
+    the `ModelForLaunchAttachment` and `EffortForLaunchAttachment` a `UserPromptEvent` carries. They
+    are metadata, never rendered, so they change no hash (rule 5). The folder's path is not sent:
+    `metadata.project` is the folder's name.
 
 ## Building
 

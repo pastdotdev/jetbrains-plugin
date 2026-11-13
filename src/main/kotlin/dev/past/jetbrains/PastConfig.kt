@@ -44,6 +44,9 @@ data class PastConfig(
 
         fun load(): PastConfig = from(readFile(), System.getenv())
 
+        /** When the config file last changed, or 0 where there is none. */
+        fun changedMs(): Long = runCatching { java.nio.file.Files.getLastModifiedTime(path).toMillis() }.getOrDefault(0L)
+
         fun from(file: JsonObject, env: Map<String, String>): PastConfig {
             fun text(name: String) = (file[name] as? JsonPrimitive)?.contentOrNull.orEmpty()
             fun flag(name: String) = (file[name] as? JsonPrimitive)?.booleanOrNull ?: true

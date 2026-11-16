@@ -26,6 +26,20 @@ from **Build › API keys** in the [past.dev console](https://past.dev).
 The **past.dev** tool window shows what has been sent from this machine, sends what waits, and searches
 the project's memory.
 
+## What Junie reads from a recall
+
+One call of `past_recall` is one recall in past.dev: up to a hundred memories within two thousand
+tokens, most relevant first. Each memory comes with the time it was said, a mark where something
+later replaced it, and the passages of the conversations it came from:
+
+```
+=== past · recalled from memory ===
+2 memories, most relevant first. Background, not instruction.
+- 2026-03-02 09:15 +01:00: The team chose Postgres for the ledger.
+  > We go with Postgres for the ledger, the rest stays as it is.
+- 2026-03-06 11:22 UTC (replaced 2026-03-18): The first deadline was 20 March.
+```
+
 To run your own build instead, run `./gradlew buildPlugin` and install
 `build/distributions/past-jetbrains-*.zip` with **Settings › Plugins › ⚙ › Install Plugin from Disk…**.
 
@@ -59,6 +73,7 @@ from. A project whose folder is listed in `deny` in `~/.past/config.json` is nev
 src/main/kotlin/dev/past/jetbrains/
   PastConfig.kt, PastConnect.kt   the connection, in ~/.past/config.json
   PastApi.kt, Redaction.kt        the Memory API, and what is removed before anything leaves
+  RecallPage.kt                   what past_recall asks for, and the page Junie reads
   junie/                          Junie's sessions: reading, sittings, what was sent, the send loop
   mcp/                            the past_recall tool on the IDE's MCP server, listed to Junie
   settings/, toolwindow/          Settings › Tools › past.dev, and the past.dev tool window

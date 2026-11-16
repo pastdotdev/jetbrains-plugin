@@ -21,7 +21,7 @@ import java.time.Duration
  * [Reply] rather than throwing, so a slow or absent network never breaks the IDE.
  */
 object PastApi {
-    const val VERSION = "0.1.0"
+    const val VERSION = "0.2.0"
 
     private val client: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
@@ -59,6 +59,10 @@ object PastApi {
         }
         return memories to reply
     }
+
+    /** The page `past_recall` reads: [RecallPage.request] says what is asked, [RecallPage.render] what is read. */
+    fun recallPage(config: PastConfig, query: String, timeout: Duration = Duration.ofSeconds(15)): Reply =
+        call(config, "POST", "/api/v1/recall", RecallPage.request(query, config.identity), timeout)
 
     fun ingestBatch(config: PastConfig, items: JsonArray): Reply =
         call(config, "POST", "/api/v1/ingest/batch", buildJsonObject { put("items", items) }, Duration.ofSeconds(30))
